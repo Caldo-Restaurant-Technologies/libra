@@ -29,10 +29,6 @@ impl Scale {
 
     pub fn connect(mut self) -> Self {
         self.vins.iter_mut().enumerate().for_each(|(i, vin)| {
-            let min_interval = vin
-                .min_data_interval()
-                .expect("Unable to get min data interval");
-
             vin.set_serial_number(self.phidget_id)
                 .expect("Invalid phidget_id");
 
@@ -40,6 +36,10 @@ impl Scale {
 
             vin.open_wait(TIMEOUT)
                 .expect("Failed to open Phidget connection");
+
+            let min_interval = vin
+                .min_data_interval()
+                .expect("Unable to get min data interval");
 
             vin.set_data_interval(min_interval)
                 .expect("Failed to set data interval");
