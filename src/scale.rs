@@ -16,14 +16,16 @@ pub enum Error {
 }
 pub struct Scale {
     phidget_id: i32,
+    offset: f64,
     coefficients: [f64; 4],
     vins: [VoltageRatioInput; NUMBER_OF_INPUTS],
 }
 
 impl Scale {
-    pub fn new(phidget_id: i32, coefficients: [f64; 4]) -> Self {
+    pub fn new(phidget_id: i32, offset: f64, coefficients: [f64; 4]) -> Self {
         Self {
             phidget_id,
+            offset,
             coefficients,
             vins: array::from_fn(|_| VoltageRatioInput::new()),
         }
@@ -49,11 +51,29 @@ impl Scale {
         self
     }
 
-    pub fn get_weight(&self, offset: f64) -> Result<f64, Error> {
+    pub fn update_coefficients(self, coefficients: [f64; 4]) -> Self {
+        Self {
+            phidget_id: self.phidget_id,
+            offset: self.offset,
+            coefficients,
+            vins: self.vins,
+        }
+    }
+
+    pub fn update_offset(self, offset: f64) -> Self {
+        Self {
+            phidget_id: self.phidget_id,
+            offset,
+            coefficients: self.coefficients,
+            vins: self.vins,
+        }
+    }
+
+    pub fn get_weight(&self) -> Result<f64, Error> {
         let readings = self.get_raw_readings();
         match readings {
             Ok(readings) => {
-                Ok(dot_product(readings.as_slice(), self.coefficients.as_slice()) - offset)
+                Ok(dot_product(readings.as_slice(), self.coefficients.as_slice()) - self.offset)
             }
             Err(_) => Err(Error::PhidgetError),
         }
