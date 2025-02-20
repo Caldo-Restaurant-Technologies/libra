@@ -16,13 +16,15 @@ pub enum Error {
 }
 pub struct Scale {
     phidget_id: i32,
+    coefficients: [f64; 4],
     vins: [VoltageRatioInput; NUMBER_OF_INPUTS],
 }
 
 impl Scale {
-    pub fn new(phidget_id: i32) -> Self {
+    pub fn new(phidget_id: i32, coefficients: [f64; 4]) -> Self {
         Self {
             phidget_id,
+            coefficients,
             vins: array::from_fn(|_| VoltageRatioInput::new()),
         }
     }
@@ -34,7 +36,7 @@ impl Scale {
 
             vin.set_channel(i as i32).expect("Invalid Channel");
 
-            vin.open_wait(Duration::from_secs(5))
+            vin.open_wait(TIMEOUT)
                 .expect("Failed to open Phidget connection");
 
             let min_interval = vin
@@ -47,13 +49,12 @@ impl Scale {
         self
     }
 
-    pub fn get_weight(&self, coefficients: &[f64], offset: f64) -> Result<f64, Error> {
-        if coefficients.len() != self.vins.len() {
-            return Err(Error::InvalidCoefficients);
-        }
+    pub fn get_weight(&self, offset: f64) -> Result<f64, Error> {
         let readings = self.get_raw_readings();
         match readings {
-            Ok(readings) => Ok(dot_product(readings.as_slice(), coefficients) - offset),
+            Ok(readings) => {
+                Ok(dot_product(readings.as_slice(), self.coefficients.as_slice()) - offset)
+            }
             Err(_) => Err(Error::PhidgetError),
         }
     }
