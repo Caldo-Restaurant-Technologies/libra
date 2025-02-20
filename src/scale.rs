@@ -34,7 +34,7 @@ impl Scale {
 
             vin.set_channel(i as i32).expect("Invalid Channel");
 
-            vin.open_wait(TIMEOUT)
+            vin.open_wait(Duration::from_secs(5))
                 .expect("Failed to open Phidget connection");
 
             let min_interval = vin
