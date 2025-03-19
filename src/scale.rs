@@ -13,7 +13,7 @@ fn dot_product(a: &[f64], b: &[f64]) -> f64 {
 pub enum Error {
     InvalidCoefficients,
     InvalidPhidgetId,
-    PhidgetError,
+    PhidgetError(ReturnCode),
 }
 
 impl fmt::Display for Error {
@@ -21,14 +21,14 @@ impl fmt::Display for Error {
         match self {
             Error::InvalidCoefficients => write!(f, "Invalid coefficients"),
             Error::InvalidPhidgetId => write!(f, "Invalid Phidget ID"),
-            Error::PhidgetError => write!(f, "Phidget error"),
+            Error::PhidgetError(code) => write!(f, "Phidget error{}", code),
         }
     }
 }
 
 impl From<std::io::Error> for Error {
     fn from(_: std::io::Error) -> Self {
-        Error::PhidgetError
+        Error::PhidgetError(ReturnCode::Io)
     }
 }
 
@@ -127,7 +127,7 @@ impl ConnectedScale {
             Ok(readings) => {
                 Ok(dot_product(readings.as_slice(), self.coefficients.as_slice()) - self.offset)
             }
-            Err(_) => Err(Error::PhidgetError),
+            Err(e) => Err(Error::PhidgetError(e)),
         }
     }
 
