@@ -21,7 +21,7 @@ impl fmt::Display for Error {
         match self {
             Error::InvalidCoefficients => write!(f, "Invalid coefficients"),
             Error::InvalidPhidgetId => write!(f, "Invalid Phidget ID"),
-            Error::PhidgetError(code) => write!(f, "Phidget error{}", code),
+            Error::PhidgetError(code) => write!(f, "Phidget error: {}", code),
         }
     }
 }
