@@ -2,6 +2,8 @@ use phidget::ReturnCode;
 use phidget::{devices::VoltageRatioInput, Phidget};
 use std::fmt;
 use std::{array, time::Duration};
+
+use crate::median;
 const NUMBER_OF_INPUTS: usize = 4;
 pub const TIMEOUT: Duration = phidget::TIMEOUT_DEFAULT;
 
@@ -21,7 +23,7 @@ impl fmt::Display for Error {
         match self {
             Error::InvalidCoefficients => write!(f, "Invalid coefficients"),
             Error::InvalidPhidgetId => write!(f, "Invalid Phidget ID"),
-            Error::PhidgetError(code) => write!(f, "Phidget error: {}", code),
+            Error::PhidgetError(code) => write!(f, "Phidget error:  {}", code),
         }
     }
 }
@@ -129,6 +131,15 @@ impl ConnectedScale {
             }
             Err(e) => Err(Error::PhidgetError(e)),
         }
+    }
+
+    pub fn get_median_weight(&self, samples: usize) -> Result<f64, Error> {
+        let mut weights = Vec::with_capacity(samples);
+        while weights.len() < samples {
+            let weight = self.get_weight()?;
+            weights.push(weight);
+        }
+        Ok(median(weights.as_mut_slice()))
     }
 
     fn get_raw_readings(&self) -> Result<Vec<f64>, ReturnCode> {
