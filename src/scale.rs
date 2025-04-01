@@ -58,7 +58,7 @@ impl DisconnectedScale {
         offset: f64,
         coefficients: [f64; NUMBER_OF_INPUTS],
         timeout: Duration,
-    ) -> Result<ConnectedScale, Error> {
+    ) -> Result<ConnectedScale, ScaleError> {
         let vins = array::from_fn(|i| {
             let mut vin = VoltageRatioInput::new();
             vin.set_serial_number(self.phidget_id)
@@ -103,11 +103,11 @@ impl ConnectedScale {
         }
     }
 
-    pub fn without_id(timeout: Duration) -> Result<Self, Error> {
+    pub fn without_id(timeout: Duration) -> Result<Self, ScaleError> {
         let mut vins = array::from_fn(|i| {
             let mut vin = VoltageRatioInput::new();
             vin.set_channel(i as i32).unwrap(); //This is ok because its impossible for i to exceed
-            //the number of channels
+                                                //the number of channels
             vin.open_wait(timeout)
                 .expect("Unable to connect to phidget");
             let min_interval = vin.min_data_interval().expect("Unable to get min interval");
@@ -115,13 +115,8 @@ impl ConnectedScale {
                 .expect("Unable to set data interval");
             vin
         });
-        let sn = Phidget::serial_number(&mut vins[0]).map_err(Error::PhidgetError)?;
-        Ok(Self::new(
-            sn,
-            0.,
-            [0.; NUMBER_OF_INPUTS],
-            vins,
-        ))
+        let sn = Phidget::serial_number(&mut vins[0]).map_err(ScaleError::PhidgetError)?;
+        Ok(Self::new(sn, 0., [0.; NUMBER_OF_INPUTS], vins))
     }
 
     pub fn update_coefficients(self, coefficients: [f64; 4]) -> Self {
@@ -142,17 +137,17 @@ impl ConnectedScale {
         }
     }
 
-    pub fn get_weight(&self) -> Result<f64, Error> {
+    pub fn get_weight(&self) -> Result<f64, ScaleError> {
         let readings = self.get_raw_readings();
         match readings {
             Ok(readings) => {
                 Ok(dot_product(readings.as_slice(), self.coefficients.as_slice()) - self.offset)
             }
-            Err(e) => Err(Error::PhidgetError(e)),
+            Err(e) => Err(ScaleError::PhidgetError(e)),
         }
     }
 
-    pub fn get_median_weight(&self, samples: usize) -> Result<f64, Error> {
+    pub fn get_median_weight(&self, samples: usize) -> Result<f64, ScaleError> {
         let mut weights = Vec::with_capacity(samples);
         while weights.len() < samples {
             let weight = self.get_weight()?;

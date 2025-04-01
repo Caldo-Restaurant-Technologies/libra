@@ -10,6 +10,6 @@ pub fn median(weights: &mut [f64]) -> f64 {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ScaleCmd {
     GetWeight,
-    GetMedianWeight{samples: usize},
-    Shutdown
+    GetMedianWeight { samples: usize },
+    Shutdown,
 }
