@@ -1,7 +1,7 @@
 use phidget::ReturnCode;
 use phidget::{devices::VoltageRatioInput, Phidget};
-use std::fmt;
 use std::{array, time::Duration};
+use thiserror::Error;
 
 use crate::median;
 const NUMBER_OF_INPUTS: usize = 4;
@@ -11,40 +11,38 @@ fn dot_product(a: &[f64], b: &[f64]) -> f64 {
     a.iter().zip(b.iter()).map(|(a, b)| a * b).sum::<f64>()
 }
 
-#[derive(Debug)]
-pub enum Error {
+#[derive(Error, Debug)]
+pub enum ScaleError {
+    #[error("Invalid coefficients")]
     InvalidCoefficients,
+
+    #[error("Invalid Phidget ID")]
     InvalidPhidgetId,
+
+    #[error("Phidget error: {0}")]
     PhidgetError(ReturnCode),
+
+    #[error("IO Error")]
+    IoError,
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::InvalidCoefficients => write!(f, "Invalid coefficients"),
-            Error::InvalidPhidgetId => write!(f, "Invalid Phidget ID"),
-            Error::PhidgetError(code) => write!(f, "Phidget error:  {}", code),
-        }
-    }
-}
+// impl From<std::io::Error> for Error {
+//     fn from(_: std::io::Error) -> Self {
+//         Error::IoError
+//     }
+// }
 
-impl From<std::io::Error> for Error {
-    fn from(_: std::io::Error) -> Self {
-        Error::PhidgetError(ReturnCode::Io)
-    }
-}
+// impl From<std::num::ParseIntError> for Error {
+//     fn from(_: std::num::ParseIntError) -> Self {
+//         Error::InvalidCoefficients
+//     }
+// }
 
-impl From<std::num::ParseIntError> for Error {
-    fn from(_: std::num::ParseIntError) -> Self {
-        Error::InvalidCoefficients
-    }
-}
-
-impl From<std::string::ParseError> for Error {
-    fn from(_: std::string::ParseError) -> Self {
-        Error::InvalidPhidgetId
-    }
-}
+// impl From<std::string::ParseError> for Error {
+//     fn from(_: std::string::ParseError) -> Self {
+//         Error::InvalidPhidgetId
+//     }
+// }
 
 pub struct DisconnectedScale {
     phidget_id: i32,
