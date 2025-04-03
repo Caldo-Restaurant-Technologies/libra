@@ -1,6 +1,6 @@
 use phidget::ReturnCode;
 use phidget::{devices::VoltageRatioInput, Phidget};
-use std::{array, time::Duration};
+use std::time::Duration;
 use thiserror::Error;
 
 use crate::median;
@@ -46,19 +46,31 @@ impl DisconnectedScale {
         coefficients: [f64; NUMBER_OF_INPUTS],
         timeout: Duration,
     ) -> Result<ConnectedScale, ScaleError> {
-        let vins = array::from_fn(|i| {
-            let mut vin = VoltageRatioInput::new();
-            vin.set_serial_number(self.phidget_id)
-                .expect("Invalid Phidget Serial Number");
-            vin.set_channel(i as i32).unwrap(); //This is ok because its impossible for i to exceed
-                                                //the number of channels
-            vin.open_wait(timeout)
-                .expect("Unable to connect to phidget");
-            let min_interval = vin.min_data_interval().expect("Unable to get min interval");
-            vin.set_data_interval(min_interval)
-                .expect("Unable to set data interval");
-            vin
-        });
+        let vins_result: Result<Vec<VoltageRatioInput>, ScaleError> =
+            (0..NUMBER_OF_INPUTS)
+                .map(|i| {
+                    let mut vin = VoltageRatioInput::new();
+                    vin.set_serial_number(self.phidget_id)
+                        .map_err(|_| ScaleError::InvalidPhidgetId)?;
+                    vin.set_channel(i as i32).unwrap(); //This is ok because its impossible for i to exceed
+                                                        //the number of channels
+                    vin.open_wait(timeout)
+                        .map_err(ScaleError::PhidgetError)?;
+                    let min_interval = vin
+                        .min_data_interval()
+                        .map_err(ScaleError::PhidgetError)?;
+                    vin.set_data_interval(min_interval)
+                        .map_err(ScaleError::PhidgetError)?;
+                    Ok(vin)
+                })
+                .collect();
+
+        let vins_vec = vins_result?;
+        let vins = match vins_vec.try_into() {
+            Ok(arr) => arr,
+            Err(_) => unreachable!("We know the size is correct"),
+        };
+
         Ok(ConnectedScale::new(
             self.phidget_id,
             offset,
@@ -91,18 +103,31 @@ impl ConnectedScale {
     }
 
     pub fn without_id(timeout: Duration) -> Result<Self, ScaleError> {
-        let mut vins = array::from_fn(|i| {
-            let mut vin = VoltageRatioInput::new();
-            vin.set_channel(i as i32).unwrap(); //This is ok because its impossible for i to exceed
-                                                //the number of channels
-            vin.open_wait(timeout)
-                .expect("Unable to connect to phidget");
-            let min_interval = vin.min_data_interval().expect("Unable to get min interval");
-            vin.set_data_interval(min_interval)
-                .expect("Unable to set data interval");
-            vin
-        });
+        let vins_result: Result<Vec<VoltageRatioInput>, ScaleError> =
+            (0..NUMBER_OF_INPUTS)
+                .map(|i| {
+                    let mut vin = VoltageRatioInput::new();
+                    vin.set_channel(i as i32).unwrap(); //This is ok because its impossible for i to exceed
+                                                        //the number of channels
+                    vin.open_wait(timeout)
+                        .map_err(ScaleError::PhidgetError)?;
+                    let min_interval = vin
+                        .min_data_interval()
+                        .map_err(ScaleError::PhidgetError)?;
+                    vin.set_data_interval(min_interval)
+                        .map_err(ScaleError::PhidgetError)?;
+                    Ok(vin)
+                })
+                .collect();
+
+        let vins_vec = vins_result?;
+        let mut vins: [VoltageRatioInput; NUMBER_OF_INPUTS] = match vins_vec.try_into() {
+            Ok(arr) => arr,
+            Err(_) => unreachable!("We know the size is correct"),
+        };
+
         let sn = Phidget::serial_number(&mut vins[0]).map_err(ScaleError::PhidgetError)?;
+
         Ok(Self::new(sn, 0., [0.; NUMBER_OF_INPUTS], vins))
     }
 
