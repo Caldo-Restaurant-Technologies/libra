@@ -26,23 +26,10 @@ pub enum ScaleError {
     IoError,
 }
 
-// impl From<std::io::Error> for Error {
-//     fn from(_: std::io::Error) -> Self {
-//         Error::IoError
-//     }
-// }
-
-// impl From<std::num::ParseIntError> for Error {
-//     fn from(_: std::num::ParseIntError) -> Self {
-//         Error::InvalidCoefficients
-//     }
-// }
-
-// impl From<std::string::ParseError> for Error {
-//     fn from(_: std::string::ParseError) -> Self {
-//         Error::InvalidPhidgetId
-//     }
-// }
+pub trait Scale {
+    fn get_weight(&self) -> Result<f64, Box<dyn std::error::Error>>;
+    fn get_median_weight(&self, samples: usize) -> Result<f64, Box<dyn std::error::Error>>;
+}
 
 pub struct DisconnectedScale {
     phidget_id: i32,
@@ -137,26 +124,27 @@ impl ConnectedScale {
         }
     }
 
-    pub fn get_weight(&self) -> Result<f64, ScaleError> {
+    pub fn get_raw_readings(&self) -> Result<Vec<f64>, ReturnCode> {
+        self.vins.iter().map(|vin| vin.voltage_ratio()).collect()
+    }
+}
+
+impl Scale for ConnectedScale {
+    fn get_weight(&self) -> Result<f64, Box<dyn std::error::Error>> {
         let readings = self.get_raw_readings();
         match readings {
             Ok(readings) => {
                 Ok(dot_product(readings.as_slice(), self.coefficients.as_slice()) - self.offset)
             }
-            Err(e) => Err(ScaleError::PhidgetError(e)),
+            Err(e) => Err(Box::new(ScaleError::PhidgetError(e))),
         }
     }
-
-    pub fn get_median_weight(&self, samples: usize) -> Result<f64, ScaleError> {
+    fn get_median_weight(&self, samples: usize) -> Result<f64, Box<dyn std::error::Error>> {
         let mut weights = Vec::with_capacity(samples);
         while weights.len() < samples {
             let weight = self.get_weight()?;
             weights.push(weight);
         }
         Ok(median(weights.as_mut_slice()))
-    }
-
-    pub fn get_raw_readings(&self) -> Result<Vec<f64>, ReturnCode> {
-        self.vins.iter().map(|vin| vin.voltage_ratio()).collect()
     }
 }
