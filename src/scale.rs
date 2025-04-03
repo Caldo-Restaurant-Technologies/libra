@@ -26,11 +26,6 @@ pub enum ScaleError {
     IoError,
 }
 
-pub trait Scale {
-    fn get_weight(&self) -> Result<f64, Box<dyn std::error::Error>>;
-    fn get_median_weight(&self, samples: usize) -> Result<f64, Box<dyn std::error::Error>>;
-}
-
 pub struct DisconnectedScale {
     phidget_id: i32,
 }
@@ -46,24 +41,20 @@ impl DisconnectedScale {
         coefficients: [f64; NUMBER_OF_INPUTS],
         timeout: Duration,
     ) -> Result<ConnectedScale, ScaleError> {
-        let vins_result: Result<Vec<VoltageRatioInput>, ScaleError> =
-            (0..NUMBER_OF_INPUTS)
-                .map(|i| {
-                    let mut vin = VoltageRatioInput::new();
-                    vin.set_serial_number(self.phidget_id)
-                        .map_err(|_| ScaleError::InvalidPhidgetId)?;
-                    vin.set_channel(i as i32).unwrap(); //This is ok because its impossible for i to exceed
-                                                        //the number of channels
-                    vin.open_wait(timeout)
-                        .map_err(ScaleError::PhidgetError)?;
-                    let min_interval = vin
-                        .min_data_interval()
-                        .map_err(ScaleError::PhidgetError)?;
-                    vin.set_data_interval(min_interval)
-                        .map_err(ScaleError::PhidgetError)?;
-                    Ok(vin)
-                })
-                .collect();
+        let vins_result: Result<Vec<VoltageRatioInput>, ScaleError> = (0..NUMBER_OF_INPUTS)
+            .map(|i| {
+                let mut vin = VoltageRatioInput::new();
+                vin.set_serial_number(self.phidget_id)
+                    .map_err(|_| ScaleError::InvalidPhidgetId)?;
+                vin.set_channel(i as i32).unwrap(); //This is ok because its impossible for i to exceed
+                                                    //the number of channels
+                vin.open_wait(timeout).map_err(ScaleError::PhidgetError)?;
+                let min_interval = vin.min_data_interval().map_err(ScaleError::PhidgetError)?;
+                vin.set_data_interval(min_interval)
+                    .map_err(ScaleError::PhidgetError)?;
+                Ok(vin)
+            })
+            .collect();
 
         let vins_vec = vins_result?;
         let vins = match vins_vec.try_into() {
@@ -103,22 +94,18 @@ impl ConnectedScale {
     }
 
     pub fn without_id(timeout: Duration) -> Result<Self, ScaleError> {
-        let vins_result: Result<Vec<VoltageRatioInput>, ScaleError> =
-            (0..NUMBER_OF_INPUTS)
-                .map(|i| {
-                    let mut vin = VoltageRatioInput::new();
-                    vin.set_channel(i as i32).unwrap(); //This is ok because its impossible for i to exceed
-                                                        //the number of channels
-                    vin.open_wait(timeout)
-                        .map_err(ScaleError::PhidgetError)?;
-                    let min_interval = vin
-                        .min_data_interval()
-                        .map_err(ScaleError::PhidgetError)?;
-                    vin.set_data_interval(min_interval)
-                        .map_err(ScaleError::PhidgetError)?;
-                    Ok(vin)
-                })
-                .collect();
+        let vins_result: Result<Vec<VoltageRatioInput>, ScaleError> = (0..NUMBER_OF_INPUTS)
+            .map(|i| {
+                let mut vin = VoltageRatioInput::new();
+                vin.set_channel(i as i32).unwrap(); //This is ok because its impossible for i to exceed
+                                                    //the number of channels
+                vin.open_wait(timeout).map_err(ScaleError::PhidgetError)?;
+                let min_interval = vin.min_data_interval().map_err(ScaleError::PhidgetError)?;
+                vin.set_data_interval(min_interval)
+                    .map_err(ScaleError::PhidgetError)?;
+                Ok(vin)
+            })
+            .collect();
 
         let vins_vec = vins_result?;
         let mut vins: [VoltageRatioInput; NUMBER_OF_INPUTS] = match vins_vec.try_into() {
@@ -170,23 +157,3 @@ impl ConnectedScale {
         Ok(median(weights.as_mut_slice()))
     }
 }
-
-// impl Scale for ConnectedScale {
-//     fn get_weight(&self) -> Result<f64, Box<dyn std::error::Error>> {
-//         let readings = self.get_raw_readings();
-//         match readings {
-//             Ok(readings) => {
-//                 Ok(dot_product(readings.as_slice(), self.coefficients.as_slice()) - self.offset)
-//             }
-//             Err(e) => Err(Box::new(ScaleError::PhidgetError(e))),
-//         }
-//     }
-//     fn get_median_weight(&self, samples: usize) -> Result<f64, Box<dyn std::error::Error>> {
-//         let mut weights = Vec::with_capacity(samples);
-//         while weights.len() < samples {
-//             let weight = self.get_weight()?;
-//             weights.push(weight);
-//         }
-//         Ok(median(weights.as_mut_slice()))
-//     }
-// }
