@@ -11,7 +11,7 @@ fn dot_product(a: &[f64], b: &[f64]) -> f64 {
     a.iter().zip(b.iter()).map(|(a, b)| a * b).sum::<f64>()
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum ScaleError {
     #[error("Invalid coefficients")]
     InvalidCoefficients,
@@ -152,19 +152,16 @@ impl ConnectedScale {
     pub fn get_raw_readings(&self) -> Result<Vec<f64>, ReturnCode> {
         self.vins.iter().map(|vin| vin.voltage_ratio()).collect()
     }
-}
-
-impl Scale for ConnectedScale {
-    fn get_weight(&self) -> Result<f64, Box<dyn std::error::Error>> {
+    pub fn get_weight(&self) -> Result<f64, ScaleError> {
         let readings = self.get_raw_readings();
         match readings {
             Ok(readings) => {
                 Ok(dot_product(readings.as_slice(), self.coefficients.as_slice()) - self.offset)
             }
-            Err(e) => Err(Box::new(ScaleError::PhidgetError(e))),
+            Err(e) => Err(ScaleError::PhidgetError(e)),
         }
     }
-    fn get_median_weight(&self, samples: usize) -> Result<f64, Box<dyn std::error::Error>> {
+    pub fn get_median_weight(&self, samples: usize) -> Result<f64, ScaleError> {
         let mut weights = Vec::with_capacity(samples);
         while weights.len() < samples {
             let weight = self.get_weight()?;
@@ -173,3 +170,23 @@ impl Scale for ConnectedScale {
         Ok(median(weights.as_mut_slice()))
     }
 }
+
+// impl Scale for ConnectedScale {
+//     fn get_weight(&self) -> Result<f64, Box<dyn std::error::Error>> {
+//         let readings = self.get_raw_readings();
+//         match readings {
+//             Ok(readings) => {
+//                 Ok(dot_product(readings.as_slice(), self.coefficients.as_slice()) - self.offset)
+//             }
+//             Err(e) => Err(Box::new(ScaleError::PhidgetError(e))),
+//         }
+//     }
+//     fn get_median_weight(&self, samples: usize) -> Result<f64, Box<dyn std::error::Error>> {
+//         let mut weights = Vec::with_capacity(samples);
+//         while weights.len() < samples {
+//             let weight = self.get_weight()?;
+//             weights.push(weight);
+//         }
+//         Ok(median(weights.as_mut_slice()))
+//     }
+// }
