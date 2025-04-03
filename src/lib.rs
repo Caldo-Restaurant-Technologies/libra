@@ -13,3 +13,16 @@ pub enum ScaleCmd {
     GetMedianWeight { samples: usize },
     Shutdown,
 }
+
+pub trait AsyncScale {
+    fn get_weight(&self) -> impl Future<Output = Result<f64, Box<dyn std::error::Error>>>;
+    fn get_median_weight(
+        &self,
+        samples: usize,
+    ) -> impl Future<Output = Result<f64, Box<dyn std::error::Error>>>;
+}
+
+pub trait Scale {
+    fn get_weight(&self) -> Result<f64, Box<dyn std::error::Error>>;
+    fn get_median_weight(&self) -> Result<f64, Box<dyn std::error::Error>>;
+}
