@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::future::Future;
 pub mod scale;
 
 pub fn median(weights: &mut [f64]) -> f64 {
