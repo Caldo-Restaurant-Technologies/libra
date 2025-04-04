@@ -1,5 +1,6 @@
 use phidget::ReturnCode;
 use phidget::{devices::VoltageRatioInput, Phidget};
+use std::array;
 use std::time::Duration;
 use thiserror::Error;
 
@@ -155,5 +156,20 @@ impl ConnectedScale {
             weights.push(weight);
         }
         Ok(median(weights.as_mut_slice()))
+    }
+    fn get_input_reading(&self, input: usize) -> Result<f64, ScaleError> {
+        self.vins[input].voltage_ratio().map_err(ScaleError::PhidgetError)
+    }
+    pub fn get_raw_medians(&self, samples: usize) -> Result<[f64; NUMBER_OF_INPUTS], ScaleError> {
+        let mut medians: [Vec<f64>; NUMBER_OF_INPUTS] = array::from_fn(|_| Vec::with_capacity(samples));
+        for _ in 0..samples {
+            for (i, vin_medians) in medians.iter_mut().enumerate().take(NUMBER_OF_INPUTS) {
+                vin_medians.push(self.get_input_reading(i)?);
+            }
+        }
+        Ok(array::from_fn(|vin| {
+            medians.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            medians[vin][samples/2]
+        }))
     }
 }
