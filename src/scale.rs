@@ -172,4 +172,7 @@ impl ConnectedScale {
             medians[vin][samples/2]
         }))
     }
+    pub fn get_phidget_id(&self) -> i32 {
+        self.phidget_id
+    }
 }
