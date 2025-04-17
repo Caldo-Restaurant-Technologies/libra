@@ -12,6 +12,24 @@ fn dot_product(a: &[f64], b: &[f64]) -> f64 {
     a.iter().zip(b.iter()).map(|(a, b)| a * b).sum::<f64>()
 }
 
+#[derive(Debug, Clone)]
+pub struct PhidgetError {
+    return_code: ReturnCode,
+    load_cell: usize
+}
+impl PhidgetError {
+    pub fn new(return_code: ReturnCode, load_cell: usize) -> Self {
+        Self {
+            return_code, load_cell
+        }
+    }
+}
+impl std::fmt::Display for PhidgetError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Phidget error at Load Cell {}: {}", self.load_cell, self.return_code)
+    }
+}
+
 #[derive(Error, Debug, Clone)]
 pub enum ScaleError {
     #[error("Invalid coefficients")]
@@ -20,11 +38,16 @@ pub enum ScaleError {
     #[error("Invalid Phidget ID")]
     InvalidPhidgetId,
 
-    #[error("Phidget error: {0}")]
-    PhidgetError(ReturnCode),
+    #[error("{0}")]
+    PhidgetError(PhidgetError),
 
     #[error("IO Error")]
     IoError,
+}
+impl ScaleError {
+    pub fn phidget_error(return_code: ReturnCode, load_cell: usize) -> Self {
+        ScaleError::PhidgetError(PhidgetError::new(return_code, load_cell))
+    }
 }
 
 pub struct DisconnectedScale {
@@ -49,10 +72,10 @@ impl DisconnectedScale {
                     .map_err(|_| ScaleError::InvalidPhidgetId)?;
                 vin.set_channel(i as i32).unwrap(); //This is ok because its impossible for i to exceed
                                                     //the number of channels
-                vin.open_wait(timeout).map_err(ScaleError::PhidgetError)?;
-                let min_interval = vin.min_data_interval().map_err(ScaleError::PhidgetError)?;
+                vin.open_wait(timeout).map_err(|return_code| ScaleError::phidget_error(return_code, i))?;
+                let min_interval = vin.min_data_interval().map_err(|return_code| ScaleError::phidget_error(return_code, i))?;
                 vin.set_data_interval(min_interval)
-                    .map_err(ScaleError::PhidgetError)?;
+                    .map_err(|return_code| ScaleError::phidget_error(return_code, i))?;
                 Ok(vin)
             })
             .collect();
@@ -100,10 +123,10 @@ impl ConnectedScale {
                 let mut vin = VoltageRatioInput::new();
                 vin.set_channel(i as i32).unwrap(); //This is ok because its impossible for i to exceed
                                                     //the number of channels
-                vin.open_wait(timeout).map_err(ScaleError::PhidgetError)?;
-                let min_interval = vin.min_data_interval().map_err(ScaleError::PhidgetError)?;
+                vin.open_wait(timeout).map_err(|return_code| ScaleError::phidget_error(return_code, i))?;
+                let min_interval = vin.min_data_interval().map_err(|return_code| ScaleError::phidget_error(return_code, i))?;
                 vin.set_data_interval(min_interval)
-                    .map_err(ScaleError::PhidgetError)?;
+                    .map_err(|return_code| ScaleError::phidget_error(return_code, i))?;
                 Ok(vin)
             })
             .collect();
@@ -113,8 +136,8 @@ impl ConnectedScale {
             Ok(arr) => arr,
             Err(_) => unreachable!("We know the size is correct"),
         };
-
-        let sn = Phidget::serial_number(&mut vins[0]).map_err(ScaleError::PhidgetError)?;
+        let vin = 0;
+        let sn = Phidget::serial_number(&mut vins[vin]).map_err(|return_code| ScaleError::phidget_error(return_code, vin))?;
 
         Ok(Self::new(sn, 0., [0.; NUMBER_OF_INPUTS], vins))
     }
@@ -137,8 +160,8 @@ impl ConnectedScale {
         }
     }
 
-    pub fn get_raw_readings(&self) -> Result<Vec<f64>, ReturnCode> {
-        self.vins.iter().map(|vin| vin.voltage_ratio()).collect()
+    pub fn get_raw_readings(&self) -> Result<Vec<f64>, ScaleError> {
+        self.vins.iter().enumerate().map(|(i, vin)| vin.voltage_ratio().map_err(|e| ScaleError::phidget_error(e, i))).collect()
     }
     pub fn get_weight(&self) -> Result<f64, ScaleError> {
         let readings = self.get_raw_readings();
@@ -146,7 +169,8 @@ impl ConnectedScale {
             Ok(readings) => {
                 Ok(dot_product(readings.as_slice(), self.coefficients.as_slice()) - self.offset)
             }
-            Err(e) => Err(ScaleError::PhidgetError(e)),
+            // TODO: this one wrong
+            Err(e) => Err(e),
         }
     }
     pub fn get_median_weight(&self, samples: usize) -> Result<f64, ScaleError> {
@@ -158,7 +182,7 @@ impl ConnectedScale {
         Ok(median(weights.as_mut_slice()))
     }
     fn get_input_reading(&self, input: usize) -> Result<f64, ScaleError> {
-        self.vins[input].voltage_ratio().map_err(ScaleError::PhidgetError)
+        self.vins[input].voltage_ratio().map_err(|e| ScaleError::phidget_error(e, input))
     }
     pub fn get_raw_medians(&self, samples: usize) -> Result<[f64; NUMBER_OF_INPUTS], ScaleError> {
         let mut medians: [Vec<f64>; NUMBER_OF_INPUTS] = array::from_fn(|_| Vec::with_capacity(samples));
