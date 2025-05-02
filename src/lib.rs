@@ -2,10 +2,16 @@ use serde::{Deserialize, Serialize};
 use std::future::Future;
 pub mod scale;
 
-pub fn median(weights: &mut [f64]) -> f64 {
+#[derive(PartialEq, PartialOrd)]
+pub struct MedianGrams(f64);
+
+#[derive(PartialEq, PartialOrd)]
+pub struct Grams(f64);
+
+pub fn median(weights: &mut [Grams]) -> MedianGrams {
     weights.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let middle = weights.len() / 2;
-    weights[middle]
+    MedianGrams(weights[middle].0)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -24,6 +30,6 @@ pub trait AsyncScale {
 }
 
 pub trait Scale {
-    fn get_weight(&self) -> Result<f64, Box<dyn std::error::Error>>;
-    fn get_median_weight(&self) -> Result<f64, Box<dyn std::error::Error>>;
+    fn get_weight(&self) -> Result<Grams, Box<dyn std::error::Error>>;
+    fn get_median_weight(&self) -> Result<MedianGrams, Box<dyn std::error::Error>>;
 }

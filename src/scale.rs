@@ -3,7 +3,7 @@ use phidget::{devices::VoltageRatioInput, Phidget};
 use std::time::Duration;
 use thiserror::Error;
 
-use crate::median;
+use crate::{median, Grams, MedianGrams};
 const NUMBER_OF_INPUTS: usize = 4;
 pub const TIMEOUT: Duration = phidget::TIMEOUT_DEFAULT;
 
@@ -139,16 +139,17 @@ impl ConnectedScale {
     pub fn get_raw_readings(&self) -> Result<Vec<f64>, ReturnCode> {
         self.vins.iter().map(|vin| vin.voltage_ratio()).collect()
     }
-    pub fn get_weight(&self) -> Result<f64, ScaleError> {
+    pub fn get_weight(&self) -> Result<Grams, ScaleError> {
         let readings = self.get_raw_readings();
         match readings {
-            Ok(readings) => {
-                Ok(dot_product(readings.as_slice(), self.coefficients.as_slice()) - self.offset)
-            }
+            Ok(readings) => Ok(Grams(
+                dot_product(readings.as_slice(), self.coefficients.as_slice()) - self.offset,
+            )),
             Err(e) => Err(ScaleError::PhidgetError(e)),
         }
     }
-    pub fn get_median_weight(&self, samples: usize) -> Result<f64, ScaleError> {
+
+    pub fn get_median_weight(&self, samples: usize) -> Result<MedianGrams, ScaleError> {
         let mut weights = Vec::with_capacity(samples);
         while weights.len() < samples {
             let weight = self.get_weight()?;
