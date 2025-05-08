@@ -1,6 +1,6 @@
 use phidget::ReturnCode;
 use phidget::{devices::VoltageRatioInput, Phidget};
-use std::array;
+use std::{array, time};
 use std::time::Duration;
 use thiserror::Error;
 
@@ -144,9 +144,9 @@ impl ConnectedScale {
     }
 
     pub fn set_data_intervals(&mut self, interval: Duration) -> Result<(), ScaleError> {
-        self.vins.iter_mut().enumerate().map(|(i, vin)|{
+        self.vins.iter_mut().enumerate().try_for_each(|(i, vin)|{
             vin.set_data_interval(interval).map_err(|return_code|ScaleError::phidget_error(return_code, i))
-        }).collect()
+        })
     }
 
     pub fn update_coefficients(self, coefficients: [f64; 4]) -> Self {
@@ -188,11 +188,17 @@ impl ConnectedScale {
         }
     }
 
-    pub fn get_median_weight(&self, samples: usize) -> Result<MedianGrams, ScaleError> {
+    pub fn get_median_weight(&self, samples: usize, interval: Duration) -> Result<MedianGrams, ScaleError> {
         let mut weights = Vec::with_capacity(samples);
+        let mut init_time = time::Instant::now();
         while weights.len() < samples {
-            let weight = self.get_weight()?;
-            weights.push(weight);
+            let current_time = time::Instant::now();
+            let time_delta = current_time - init_time;
+            if time_delta > interval {
+                let weight = self.get_weight()?;
+                weights.push(weight);
+                init_time = time::Instant::now();
+            }
         }
         Ok(median(weights.as_mut_slice()))
     }
@@ -217,4 +223,78 @@ impl ConnectedScale {
     pub fn get_phidget_id(&self) -> i32 {
         self.phidget_id
     }
+}
+
+// #[test]
+// fn test_intervals() {
+//     let coefficients = [4724021.51918352, -5046308.55485998, -4340654.08334358, -4890313.87742358];
+//     let interval = Duration::from_millis(32);
+//     let mut scale = ConnectedScale::without_id(Duration::from_secs(3)).unwrap().update_coefficients(coefficients);
+//     if let Err(e) = scale.set_data_intervals(interval) {
+//         eprintln!("{:?}", e);
+//     }
+
+
+//     for _ in 0..100 {
+//         println!("{:?} with interval: {:?}", scale.get_median_weight(10, interval).unwrap(), interval);
+//         std::thread::sleep(interval);
+//     }
+
+// }
+
+#[test]
+fn test_dispensing() {
+
+    use std::io::prelude::*;
+    use std::net::TcpStream;
+
+    use std::net::Shutdown;
+
+
+    let coefficients = [4724021.51918352, -5046308.55485998, -4340654.08334358, -4890313.87742358];
+    let interval = Duration::from_millis(128);
+    let mut scale = ConnectedScale::without_id(Duration::from_secs(3)).unwrap().update_coefficients(coefficients);
+    if let Err(e) = scale.set_data_intervals(interval) {
+        eprintln!("{:?}", e);
+    }
+
+    let motor_enable = [2, b'M',b'0', b'E', b'N', 13];
+    let motor_move = [2, b'M',b'0', b'J', b'G',b'1',b'0',b'0', 13];
+    let motor_stop = [2, b'M',b'0', b'D', b'E', 13];
+
+   let mut buffer = [0u8; 128];
+
+    let mut stream = TcpStream::connect("192.168.1.12:8888").unwrap();
+    stream.write_all(&motor_enable).unwrap();
+    std::thread::sleep(Duration::from_millis(250));
+    stream.read(&mut buffer).unwrap();
+  
+
+
+    let starting_weight = scale.get_median_weight(10, interval).unwrap().0;
+
+    let sp = 15.;
+
+    let target = starting_weight - sp;
+
+    stream.write_all(&motor_move).unwrap();
+    std::thread::sleep(Duration::from_millis(250));
+    stream.read(&mut buffer).unwrap();
+
+    println!("Dispense Started!");
+    loop {
+        let current_weight = scale.get_median_weight(10, interval).unwrap();
+        println!("Current Weight: {:?}", current_weight);
+        if current_weight.0 < target {
+            stream.write_all(&motor_stop).unwrap();
+            std::thread::sleep(Duration::from_millis(250));
+            stream.read(&mut buffer).unwrap();
+            println!("Dispense Complete!");
+            stream.shutdown(Shutdown::Both).unwrap();
+            break;
+        }
+        std::thread::sleep(interval);
+    }
+    
+
 }

@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 use std::future::Future;
 pub mod scale;
 
-#[derive(PartialEq, PartialOrd)]
+#[derive(PartialEq, PartialOrd, Debug)]
 pub struct MedianGrams(f64);
 
-#[derive(PartialEq, PartialOrd)]
+#[derive(PartialEq, PartialOrd, Debug)]
 pub struct Grams(f64);
 
 pub fn median(weights: &mut [Grams]) -> MedianGrams {
