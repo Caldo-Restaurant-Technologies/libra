@@ -3,10 +3,20 @@ use std::future::Future;
 pub mod scale;
 
 #[derive(PartialEq, PartialOrd, Debug)]
-pub struct MedianGrams(f64);
+pub struct MedianGrams(pub f64);
+impl MedianGrams {
+    pub fn get(&self) -> f64 {
+        self.0
+    }
+}
 
 #[derive(PartialEq, PartialOrd, Debug)]
-pub struct Grams(f64);
+pub struct Grams(pub f64);
+impl Grams {
+    pub fn get(&self) -> f64 {
+        self.0
+    }
+}
 
 pub fn median(weights: &mut [Grams]) -> MedianGrams {
     weights.sort_by(|a, b| a.partial_cmp(b).unwrap());
