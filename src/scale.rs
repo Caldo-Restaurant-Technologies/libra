@@ -221,13 +221,14 @@ impl ConnectedScale {
             .map_err(|e| ScaleError::phidget_error(e, input))
     }
 
-    pub fn get_raw_medians(&self, samples: usize) -> Result<[f64; NUMBER_OF_INPUTS], ScaleError> {
+    pub fn get_load_cell_medians(&self, samples: usize, sample_period: Duration) -> Result<[f64; NUMBER_OF_INPUTS], ScaleError> {
         let mut medians: [Vec<f64>; NUMBER_OF_INPUTS] =
             array::from_fn(|_| Vec::with_capacity(samples));
         for _ in 0..samples {
             for (i, vin_medians) in medians.iter_mut().enumerate().take(NUMBER_OF_INPUTS) {
                 vin_medians.push(self.get_input_reading(i)?);
             }
+            std::thread::sleep(sample_period);
         }
         Ok(array::from_fn(|vin| {
             medians.sort_by(|a, b| a.partial_cmp(b).unwrap());
