@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 pub mod scale;
+mod trial;
 
 #[derive(PartialEq, PartialOrd, Debug)]
 pub struct MedianGrams(pub f64);
